@@ -11,7 +11,16 @@
         .btn { padding: 8px 14px; border: 1px solid #ccc; background: white; cursor: pointer; border-radius: 6px; font-size: 13px; font-weight: 500; transition: 0.2s; }
         .btn:active { transform: scale(0.95); }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        #canvas-container { position: relative; background: white; box-shadow: 0 10px 30px var(--shadow); border-radius: 8px; }
+		
+		#canvas-container {
+			position: relative;
+			background: white;
+			box-shadow: 0 10px 30px var(--shadow);
+			border-radius: 8px;
+			width: 400px;  /* Добавьте это, чтобы контейнер соответствовал холсту */
+			height: 300px; /* Добавьте это */
+		}
+		
         canvas { display: block; cursor: crosshair; touch-action: none; }
         #edit-overlay { 
             display: none; position: absolute; background: white; 
@@ -76,8 +85,10 @@
     const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
     function resize() {
-        canvas.width = Math.min(window.innerWidth - 30, 800);
-        canvas.height = canvas.width * 0.6;
+		canvas.width = 400; 
+		canvas.height = 300;
+        //canvas.width = Math.min(window.innerWidth - 30, 800);
+        //canvas.height = canvas.width * 0.6;
         if(history.length === 0) saveHistory(); 
     }
     window.addEventListener('resize', resize);
