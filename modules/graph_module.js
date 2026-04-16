@@ -32,11 +32,11 @@ const GraphModule = {
     drawGrid: function(ctx) {
         ctx.strokeStyle = '#f0f0f0';
         ctx.lineWidth = 1;
-        for (let x = 0; x <= 400; x += this.GRID) {
+        for (let x = 0; x <= 300; x += this.GRID) {
             ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 250); ctx.stroke();
         }
         for (let y = 0; y <= 250; y += this.GRID) {
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(400, y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(300, y); ctx.stroke();
         }
     },
 
