@@ -33,6 +33,46 @@
 			min-height: 60px;   /* Поможет, если в ответах будут длинные формулы */
 		}
         .btn-opt:hover { background: #dfe6e9; }
+	#menu-section { position: relative; } /* Для позиционирования кнопки */
+
+    .settings-btn {
+        position: absolute;
+        top: -10px;
+        right: -10px;
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #b2bec3;
+        transition: transform 0.3s, color 0.3s;
+        padding: 10px;
+    }
+
+    .settings-btn:hover {
+        color: var(--accent);
+        transform: rotate(90deg);
+    }
+
+    /* Стили для модального окна редактора (если захотите встроить прямо в страницу) */
+    #editor-modal {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: white;
+        z-index: 1000;
+    }
+    .close-editor {
+        position: absolute;
+        top: 10px; right: 20px;
+        padding: 10px 20px;
+        background: var(--danger);
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+
+		
     </style>
 </head>
 <body>
