@@ -186,7 +186,15 @@ const App = {
         // Финальный экран (заменяем содержимое карточки)
 		ReportGenerator.render('main-container', reportData);
     }
+	
+	
+	
 };
+
+// Открытиые GeoEditor
+document.getElementById('open-editor-btn').addEventListener('click', () => {
+	window.open('modules/GeoEditor.html', '_blank');
+});
 
 // Запуск при загрузке
 window.addEventListener('DOMContentLoaded', () => App.init());
