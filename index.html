@@ -33,45 +33,45 @@
 			min-height: 60px;   /* Поможет, если в ответах будут длинные формулы */
 		}
         .btn-opt:hover { background: #dfe6e9; }
-	#menu-section { position: relative; } /* Для позиционирования кнопки */
+		
+		#menu-section { position: relative; } /* Для позиционирования кнопки */
 
-    .settings-btn {
-        position: absolute;
-        top: -10px;
-        right: -10px;
-        background: none;
-        border: none;
-        font-size: 24px;
-        cursor: pointer;
-        color: #b2bec3;
-        transition: transform 0.3s, color 0.3s;
-        padding: 10px;
-    }
+		.settings-btn {
+			position: absolute;
+			top: -10px;
+			right: -10px;
+			background: none;
+			border: none;
+			font-size: 24px;
+			cursor: pointer;
+			color: #b2bec3;
+			transition: transform 0.3s, color 0.3s;
+			padding: 10px;
+		}
 
-    .settings-btn:hover {
-        color: var(--accent);
-        transform: rotate(90deg);
-    }
+		.settings-btn:hover {
+			color: var(--accent);
+			transform: rotate(90deg);
+		}
 
-    /* Стили для модального окна редактора (если захотите встроить прямо в страницу) */
-    #editor-modal {
-        display: none;
-        position: fixed;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background: white;
-        z-index: 1000;
-    }
-    .close-editor {
-        position: absolute;
-        top: 10px; right: 20px;
-        padding: 10px 20px;
-        background: var(--danger);
-        color: white;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-    }
-
+		/* Стили для модального окна редактора (если захотите встроить прямо в страницу) */
+		#editor-modal {
+			display: none;
+			position: fixed;
+			top: 0; left: 0; width: 100%; height: 100%;
+			background: white;
+			z-index: 1000;
+		}
+		.close-editor {
+			position: absolute;
+			top: 10px; right: 20px;
+			padding: 10px 20px;
+			background: var(--danger);
+			color: white;
+			border: none;
+			border-radius: 5px;
+			cursor: pointer;
+		}
 		
     </style>
 </head>
@@ -86,12 +86,20 @@
     </section>
 
     <section id="menu-section" class="hidden">
+	
+		<button class="settings-btn" id="open-editor-btn" title="Открыть GeoEditor">⚙️</button>
+		
         <h2>Настройка занятия</h2>
         <div class="form-group"><label>Предмет</label><select id="select-subject"></select></div>
         <div class="form-group"><label>Класс</label><select id="select-grade" disabled></select></div>
         <div class="form-group"><label>Тема</label><select id="select-topic" disabled></select></div>
         <button class="btn" id="start-btn">Начать</button>
     </section>
+
+	<div id="editor-modal">
+		<button class="close-editor" onclick="closeEditor()">Закрыть редактор</button>
+		<iframe id="editor-frame" src="" style="width:100%; height:100%; border:none;"></iframe>
+	</div>
 
     <section id="game-section" class="hidden">
         <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
@@ -130,6 +138,15 @@
 <script src="modules/single_choice_2.js"></script>
 
 	<script src="themes_and_tasks/geometry_8_angles.js"></script>
+    <script src="themes_and_tasks/algebra_8_equations.js"></script>
+	<script src="themes_and_tasks/algebra_10_trigonometry.js"></script>
+	<script src="themes_and_tasks/algebra_11_log_equations.js"></script>
+	<script src="themes_and_tasks/algebra_8_linear_inequalities.js"></script>
+	<script src="themes_and_tasks/algebra_8_linear_inequalities_system.js"></script>
+	<script src="themes_and_tasks/vpr_math_8_var2.js"></script>
+	<script src="themes_and_tasks/vpr_math_8_var1.js"></script>
+	<script src="themes_and_tasks/algebra_11_trigonometry_values_11_13042026.js"></script>
+	<script src="themes_and_tasks/EGE_math_base_var_1_13042026.js"></script>
 	
 <script src="app.js"></script>
 
