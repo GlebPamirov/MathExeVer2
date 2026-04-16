@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GeoEditor v5.1 — Dynamic Links</title>
+    <title>GeoEditor v5.2 — Smart Snapping</title>
     <style>
         :root { --accent: #0984e3; --panel: #f1f2f6; --text: #2d3436; --shadow: rgba(0,0,0,0.1); }
         body { font-family: system-ui; display: flex; flex-direction: column; align-items: center; background: #dfe6e9; margin: 0; padding: 10px; overflow: hidden; touch-action: none; }
@@ -26,7 +26,7 @@
 <body>
 
 <div class="toolbar">
-    <div style="font-weight: bold; padding: 8px; color: var(--accent);">GeoEditor v5.1</div>
+    <div style="font-weight: bold; padding: 8px; color: var(--accent);">GeoEditor v5.2</div>
     <button class="btn" onclick="generateCode()">Экспорт</button>
 </div>
 
@@ -43,7 +43,8 @@
 </div>
 
 <div class="hint">
-    Двойной тап: точка | Тянуть сразу: линия | Удержать 1 сек: перенос точки и линий
+    Двойной тап: точка | Тянуть: линия | Удержание 1 сек: перенос<br>
+    Точки "прилипают" к сетке и к существующим линиям.
 </div>
 
 <script>
@@ -53,7 +54,7 @@
     const editInput = document.getElementById('edit-input');
 
     const GRID = 25;
-    const SNAP_DIST = 15;
+    const SNAP_DIST = 12;
     const POINT_RADIUS = 3;
     const TOUCH_RADIUS = 28;
     const MIN_LINE_LEN = 25; 
@@ -117,10 +118,35 @@
         return { x: clientX - rect.left, y: clientY - rect.top };
     }
 
+    // Вспомогательная функция для поиска ближайшей точки на отрезке
+    function getClosestPointOnLine(px, py, x1, y1, x2, y2) {
+        const dx = x2 - x1, dy = y2 - y1;
+        if (dx === 0 && dy === 0) return { x: x1, y: y1 };
+        const t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
+        if (t < 0) return { x: x1, y: y1 };
+        if (t > 1) return { x: x2, y: y2 };
+        return { x: x1 + t * dx, y: y1 + t * dy };
+    }
+
     function calculateSnap(x, y) {
-        const gx = Math.round(x / GRID) * GRID;
-        const gy = Math.round(y / GRID) * GRID;
-        if (Math.hypot(x - gx, y - gy) < SNAP_DIST) return { x: gx, y: gy };
+        let bestSnap = { x: Math.round(x / GRID) * GRID, y: Math.round(y / GRID) * GRID };
+        let minDist = Math.hypot(x - bestSnap.x, y - bestSnap.y);
+
+        // Прилипание к линиям
+        elements.lines.forEach(l => {
+            const p1 = elements.points.find(p => p.id === l.p1id);
+            const p2 = elements.points.find(p => p.id === l.p2id);
+            if (p1 && p2) {
+                const closest = getClosestPointOnLine(x, y, p1.x, p1.y, p2.x, p2.y);
+                const d = Math.hypot(x - closest.x, y - closest.y);
+                if (d < SNAP_DIST && d < minDist) {
+                    minDist = d;
+                    bestSnap = closest;
+                }
+            }
+        });
+
+        if (minDist < SNAP_DIST) return bestSnap;
         return { x, y };
     }
 
@@ -190,7 +216,6 @@
     };
 
     const handleDblAction = (x, y) => {
-        // Проверка клика по подписи линии
         for (let l of elements.lines) {
             const p1 = elements.points.find(p => p.id === l.p1id);
             const p2 = elements.points.find(p => p.id === l.p2id);
@@ -199,11 +224,8 @@
                 if (Math.hypot(mx - x, my - y) < 20) return showEditor(l, x, y, 'label');
             }
         }
-
-        // Проверка клика по точке
         const hitP = elements.points.find(p => Math.hypot(p.x - x, p.y - y) < TOUCH_RADIUS);
         if (hitP) return showEditor(hitP, x, y, 'name');
-
         if (elements.points.some(p => Math.hypot(p.x - x, p.y - y) < TOUCH_RADIUS)) return;
 
         const snap = calculateSnap(x, y);
@@ -255,7 +277,6 @@
             if (p1 && p2) {
                 ctx.strokeStyle = '#2d3436'; ctx.lineWidth = 2;
                 ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
-                
                 const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
                 ctx.fillStyle = 'rgba(9, 132, 227, 0.1)';
                 ctx.beginPath(); ctx.arc(mx, my, 12, 0, 7); ctx.fill();
