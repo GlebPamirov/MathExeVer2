@@ -14,7 +14,7 @@ const GraphModule = {
 
         // Настройка высокого разрешения (DPI)
         const dpr = window.devicePixelRatio || 1;
-        canvas.width = 400 * dpr;
+        canvas.width = 300 * dpr;
         canvas.height = 250 * dpr;
         ctx.scale(dpr, dpr);
 
