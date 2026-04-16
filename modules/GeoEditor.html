@@ -3,322 +3,296 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GeoEditor v5.2 — Smart Snapping</title>
+    <title>GeoEditor v5.9 — Pro Logic</title>
     <style>
-        :root { --accent: #0984e3; --panel: #f1f2f6; --text: #2d3436; --shadow: rgba(0,0,0,0.1); }
+        :root { --accent: #0984e3; --panel: rgba(241, 242, 246, 0.8); --text: #2d3436; --shadow: rgba(0,0,0,0.15); }
         body { font-family: system-ui; display: flex; flex-direction: column; align-items: center; background: #dfe6e9; margin: 0; padding: 10px; overflow: hidden; touch-action: none; }
-        .toolbar { background: var(--panel); padding: 10px; border-radius: 10px; display: flex; gap: 8px; margin-bottom: 10px; box-shadow: 0 4px 6px var(--shadow); }
-        .btn { padding: 8px 14px; border: 1px solid #ccc; background: white; cursor: pointer; border-radius: 6px; font-size: 13px; font-weight: 500; transition: 0.2s; }
+        .toolbar { background: white; padding: 10px; border-radius: 10px; display: flex; gap: 8px; margin-bottom: 10px; box-shadow: 0 4px 6px var(--shadow); }
+        .btn { padding: 6px 12px; border: 1px solid #ccc; background: white; cursor: pointer; border-radius: 6px; font-size: 13px; transition: 0.2s; display: flex; align-items: center; justify-content: center; }
         .btn:active { transform: scale(0.95); }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-		
-		#canvas-container {
-			position: relative;
-			background: white;
-			box-shadow: 0 10px 30px var(--shadow);
-			border-radius: 8px;
-			width: 400px;  /* Добавьте это, чтобы контейнер соответствовал холсту */
-			height: 300px; /* Добавьте это */
-		}
-		
+        
+        #canvas-container { position: relative; background: white; box-shadow: 0 10px 30px var(--shadow); border-radius: 8px; width: 400px; height: 300px; }
         canvas { display: block; cursor: crosshair; touch-action: none; }
-        #edit-overlay { 
-            display: none; position: absolute; background: white; 
-            padding: 2px; border: 1px solid #ccc; border-radius: 4px; z-index: 100;
-            box-shadow: 0 4px 10px var(--shadow);
+        
+        /* Полупрозрачное меню */
+        #line-menu { 
+            display: none; position: absolute; background: rgba(255, 255, 255, 0.85); 
+            backdrop-filter: blur(5px); border-radius: 10px; padding: 10px; 
+            box-shadow: 0 8px 24px var(--shadow); z-index: 1000; width: 160px;
+            flex-direction: column; gap: 8px; border: 1px solid rgba(0,0,0,0.1);
         }
-        #edit-input { width: 70px; border: none; outline: none; text-align: center; font-size: 13px; padding: 4px; color: var(--accent); font-weight: bold; }
+        .input-group { display: flex; gap: 4px; }
+        #line-label-input { flex: 1; border: 1px solid #ddd; padding: 5px; border-radius: 4px; font-size: 13px; }
+        .btn-apply { background: #2ecc71; color: white; border: none; padding: 4px 8px; font-weight: bold; }
+        
+        .menu-row { display: flex; gap: 3px; }
+        .btn-sm { flex: 1; padding: 5px 0; font-size: 11px; background: white; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+        .btn-danger { background: #ff7675; color: white; border: none; margin-top: 4px; }
+        
         .history-panel { margin-top: 15px; display: flex; gap: 10px; }
-        .hint { margin-top: 10px; font-size: 0.7rem; color: #636e72; text-align: center; opacity: 0.8; }
     </style>
 </head>
 <body>
 
 <div class="toolbar">
-    <div style="font-weight: bold; padding: 8px; color: var(--accent);">GeoEditor v5.2</div>
-    <button class="btn" onclick="generateCode()">Экспорт</button>
+    <div style="font-weight: bold; color: var(--accent); margin-right: 10px;">v5.9</div>
+    <button class="btn" onclick="undo()">⬅</button>
+    <button class="btn" onclick="redo()">➡</button>
+    <button class="btn" style="margin-left: auto" onclick="elements = {points:[], lines:[]}; saveHistory();">Очистить</button>
 </div>
 
 <div id="canvas-container">
     <canvas id="geoCanvas"></canvas>
-    <div id="edit-overlay">
-        <input type="text" id="edit-input" placeholder="...">
+    <div id="line-menu">
+        <div class="input-group">
+            <input type="text" id="line-label-input" placeholder="Имя линии...">
+            <button class="btn btn-apply" onclick="closeMenu()">✓</button>
+        </div>
+        <button class="btn" onclick="toggleDash()">Пунктир</button>
+        <button class="btn" onclick="splitLine()">Разделить пополам</button>
+        <div class="menu-row">
+            <button class="btn-sm" onclick="setTick('I')">I</button>
+            <button class="btn-sm" onclick="setTick('II')">II</button>
+            <button class="btn-sm" onclick="setTick('III')">III</button>
+            <button class="btn-sm" onclick="setTick('IV')">IV</button>
+            <button class="btn-sm" onclick="setTick('~')">~</button>
+        </div>
+        <button class="btn btn-danger" onclick="deleteLine()">Удалить линию</button>
     </div>
-</div>
-
-<div class="history-panel">
-    <button class="btn" id="undoBtn" onclick="undo()">⬅ Отмена</button>
-    <button class="btn" id="redoBtn" onclick="redo()">Возврат ➡</button>
-</div>
-
-<div class="hint">
-    Двойной тап: точка | Тянуть: линия | Удержание 1 сек: перенос<br>
-    Точки "прилипают" к сетке и к существующим линиям.
 </div>
 
 <script>
     const canvas = document.getElementById('geoCanvas');
     const ctx = canvas.getContext('2d');
-    const overlay = document.getElementById('edit-overlay');
-    const editInput = document.getElementById('edit-input');
+    const lineMenu = document.getElementById('line-menu');
+    const lineInput = document.getElementById('line-label-input');
 
-    const GRID = 25;
-    const SNAP_DIST = 12;
-    const POINT_RADIUS = 3;
-    const TOUCH_RADIUS = 28;
-    const MIN_LINE_LEN = 25; 
-
-    let elements = { points: [], lines: [] };
-    let history = [];
-    let historyStep = -1;
-
-    let isDrawingLine = false;
-    let isDraggingPoint = false;
-    let selectedPoint = null;
-    let lastPos = { x: 0, y: 0 };
-    let lastTapTime = 0;
-    let actionStartTime = 0;
-    let longPressTimer = null;
-    let activeObjRef = null;
-    let activeField = '';
-
+    const GRID = 25, SNAP_DIST = 15, POINT_RADIUS = 3.5, TOUCH_RADIUS = 25; 
+    let elements = { points: [], lines: [] }, history = [], historyStep = -1;
+    let isDrawingLine = false, isDraggingPoint = false, isDraggingLabel = false;
+    let selectedPoint = null, selectedLabelObj = null, activeMenuLine = null;
+    let lastPos = { x: 0, y: 0 }, startPos = { x: 0, y: 0 }, lastTapTime = 0, tapTimer = null;
     const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-    function resize() {
-		canvas.width = 400; 
-		canvas.height = 300;
-        //canvas.width = Math.min(window.innerWidth - 30, 800);
-        //canvas.height = canvas.width * 0.6;
-        if(history.length === 0) saveHistory(); 
-    }
-    window.addEventListener('resize', resize);
-    resize();
+    function resize() { canvas.width = 400; canvas.height = 300; if(history.length === 0) saveHistory(); }
+    window.addEventListener('resize', resize); resize();
 
     function saveHistory() {
         if (historyStep < history.length - 1) history = history.slice(0, historyStep + 1);
-        history.push(JSON.stringify(elements));
-        historyStep++;
-        updateHistoryButtons();
+        history.push(JSON.stringify(elements)); historyStep++;
     }
-
-    function undo() {
-        if (historyStep > 0) {
-            historyStep--;
-            elements = JSON.parse(history[historyStep]);
-            updateHistoryButtons();
-        }
-    }
-
-    function redo() {
-        if (historyStep < history.length - 1) {
-            historyStep++;
-            elements = JSON.parse(history[historyStep]);
-            updateHistoryButtons();
-        }
-    }
-
-    function updateHistoryButtons() {
-        document.getElementById('undoBtn').disabled = historyStep <= 0;
-        document.getElementById('redoBtn').disabled = historyStep >= history.length - 1;
-    }
+    function undo() { if (historyStep > 0) { historyStep--; elements = JSON.parse(history[historyStep]); } }
+    function redo() { if (historyStep < history.length - 1) { historyStep++; elements = JSON.parse(history[historyStep]); } }
 
     function getPos(e) {
         const rect = canvas.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        return { x: clientX - rect.left, y: clientY - rect.top };
+        const c = e.touches ? e.touches[0] : e;
+        return { x: c.clientX - rect.left, y: c.clientY - rect.top };
     }
 
-    // Вспомогательная функция для поиска ближайшей точки на отрезке
-    function getClosestPointOnLine(px, py, x1, y1, x2, y2) {
-        const dx = x2 - x1, dy = y2 - y1;
-        if (dx === 0 && dy === 0) return { x: x1, y: y1 };
-        const t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
-        if (t < 0) return { x: x1, y: y1 };
-        if (t > 1) return { x: x2, y: y2 };
-        return { x: x1 + t * dx, y: y1 + t * dy };
+    function lineIntersectsRect(x1, y1, x2, y2, rx, ry, rw, rh) {
+        const left = rx, right = rx + rw, top = ry, bottom = ry + rh;
+        const minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
+        const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
+        if (maxX < left || minX > right || maxY < top || minY > bottom) return false;
+        return true; 
+    }
+
+    function getAutoOffset(p) {
+        if (p.manualLabel) return p.labelOff || {x: 12, y: -12};
+        const options = [[15, -15], [-25, -15], [15, 20], [-25, 20], [0, -25], [0, 25]];
+        for (let opt of options) {
+            let collision = false;
+            for (let l of elements.lines) {
+                const lp1 = elements.points.find(pt => pt.id === l.p1id), lp2 = elements.points.find(pt => pt.id === l.p2id);
+                if (lp1 && lp2 && lineIntersectsRect(lp1.x, lp1.y, lp2.x, lp2.y, p.x + opt[0], p.y + opt[1] - 10, 20, 15)) {
+                    collision = true; break;
+                }
+            }
+            if (!collision) return { x: opt[0], y: opt[1] };
+        }
+        return { x: 12, y: -12 };
     }
 
     function calculateSnap(x, y) {
-        let bestSnap = { x: Math.round(x / GRID) * GRID, y: Math.round(y / GRID) * GRID };
-        let minDist = Math.hypot(x - bestSnap.x, y - bestSnap.y);
-
-        // Прилипание к линиям
+        let best = { x: Math.round(x / GRID) * GRID, y: Math.round(y / GRID) * GRID };
+        let minDist = Math.hypot(x - best.x, y - best.y);
         elements.lines.forEach(l => {
-            const p1 = elements.points.find(p => p.id === l.p1id);
-            const p2 = elements.points.find(p => p.id === l.p2id);
-            if (p1 && p2) {
-                const closest = getClosestPointOnLine(x, y, p1.x, p1.y, p2.x, p2.y);
-                const d = Math.hypot(x - closest.x, y - closest.y);
-                if (d < SNAP_DIST && d < minDist) {
-                    minDist = d;
-                    bestSnap = closest;
-                }
-            }
+            const p1 = elements.points.find(p => p.id === l.p1id), p2 = elements.points.find(p => p.id === l.p2id);
+            if (!p1 || !p2) return;
+            const dx = p2.x - p1.x, dy = p2.y - p1.y;
+            const t = Math.max(0, Math.min(1, ((x - p1.x) * dx + (y - p1.y) * dy) / (dx * dx + dy * dy)));
+            const closest = { x: p1.x + t * dx, y: p1.y + t * dy };
+            const d = Math.hypot(x - closest.x, y - closest.y);
+            if (d < SNAP_DIST && d < minDist) { minDist = d; best = closest; }
         });
-
-        if (minDist < SNAP_DIST) return bestSnap;
-        return { x, y };
+        return minDist < SNAP_DIST ? best : { x, y };
     }
 
     const onStart = (e) => {
-        if (overlay.style.display === 'block') overlay.style.display = 'none';
-        const pos = getPos(e);
-        lastPos = pos;
-        actionStartTime = Date.now();
-        
-        const hit = elements.points.find(p => Math.hypot(p.x - pos.x, p.y - pos.y) < TOUCH_RADIUS);
-        if (hit) {
-            selectedPoint = hit;
-            longPressTimer = setTimeout(() => {
-                isDraggingPoint = true;
-                isDrawingLine = false;
-            }, 1000);
-            isDrawingLine = true;
+        const pos = getPos(e); startPos = pos; lastPos = pos;
+        clearTimeout(tapTimer);
+        if (lineMenu.style.display === 'flex' && !lineMenu.contains(e.target)) closeMenu();
+
+        if (selectedLabelObj) {
+            const isP = !!selectedLabelObj.id;
+            const base = isP ? selectedLabelObj : getMid(selectedLabelObj);
+            const off = isP ? (selectedLabelObj.labelOff || getAutoOffset(selectedLabelObj)) : (selectedLabelObj.manualLabelPos ? {x: selectedLabelObj.manualLabelPos.x - base.x, y: selectedLabelObj.manualLabelPos.y - base.y} : {x:0, y:-15});
+            if (Math.hypot(base.x + off.x - pos.x, base.y + off.y - pos.y) < 25) { isDraggingLabel = true; return; }
+        }
+
+        const hitP = elements.points.find(p => Math.hypot(p.x - pos.x, p.y - pos.y) < TOUCH_RADIUS);
+        if (hitP) {
+            selectedPoint = hitP; isDrawingLine = true;
+            setTimeout(() => { if(!isMoved()) { isDraggingPoint = true; isDrawingLine = false; } }, 800);
         }
     };
+
+    const isMoved = () => Math.hypot(lastPos.x - startPos.x, lastPos.y - startPos.y) > 7;
 
     const onMove = (e) => {
-        const pos = getPos(e);
-        if (Math.hypot(pos.x - lastPos.x, pos.y - lastPos.y) > 5) {
-            if (!isDraggingPoint) clearTimeout(longPressTimer);
-        }
-        if (isDraggingPoint && selectedPoint) {
+        const pos = getPos(e); lastPos = pos;
+        if (isDraggingLabel && selectedLabelObj) {
+            const isP = !!selectedLabelObj.id;
+            const base = isP ? selectedLabelObj : getMid(selectedLabelObj);
+            if (isP) { selectedLabelObj.labelOff = { x: pos.x - base.x, y: pos.y - base.y }; selectedLabelObj.manualLabel = true; }
+            else { selectedLabelObj.manualLabelPos = pos; }
+        } else if (isDraggingPoint && selectedPoint) {
             const snap = calculateSnap(pos.x, pos.y);
-            selectedPoint.x = snap.x;
-            selectedPoint.y = snap.y;
+            selectedPoint.x = snap.x; selectedPoint.y = snap.y;
         }
-        lastPos = pos;
     };
 
-    const onEnd = (e) => {
-        clearTimeout(longPressTimer);
-        const duration = Date.now() - actionStartTime;
+    const onEnd = () => {
+        const timeNow = Date.now();
+        const doubleTap = timeNow - lastTapTime < 300;
+        lastTapTime = timeNow;
 
-        if (isDrawingLine && selectedPoint && !isDraggingPoint) {
-            const dist = Math.hypot(lastPos.x - selectedPoint.x, lastPos.y - selectedPoint.y);
-            if (dist > MIN_LINE_LEN && duration > 200) {
-                const snap = calculateSnap(lastPos.x, lastPos.y);
-                let target = elements.points.find(p => Math.hypot(p.x - snap.x, p.y - snap.y) < TOUCH_RADIUS);
-                
-                if (!target) {
-                    target = { x: snap.x, y: snap.y, name: alphabet[elements.points.length % alphabet.length], id: Date.now(), blink: 1 };
-                    elements.points.push(target);
-                }
-                
-                if (target !== selectedPoint) {
-                    const exists = elements.lines.some(l => 
-                        (l.p1id === selectedPoint.id && l.p2id === target.id) || 
-                        (l.p1id === target.id && l.p2id === selectedPoint.id)
-                    );
-                    if (!exists) {
-                        elements.lines.push({ p1id: selectedPoint.id, p2id: target.id, label: '' });
-                        saveHistory();
-                    }
-                }
+        if (!isMoved()) {
+            if (doubleTap) { clearTimeout(tapTimer); handleDblClick(startPos.x, startPos.y); }
+            else { tapTimer = setTimeout(() => {
+                const snap = calculateSnap(startPos.x, startPos.y);
+                elements.points.push({ x: snap.x, y: snap.y, name: alphabet[elements.points.length % alphabet.length], id: Date.now(), manualLabel: false });
+                saveHistory();
+            }, 300); }
+        } else if (isDrawingLine && selectedPoint && !isDraggingPoint) {
+            const snap = calculateSnap(lastPos.x, lastPos.y);
+            let target = elements.points.find(p => Math.hypot(p.x - snap.x, p.y - snap.y) < TOUCH_RADIUS);
+            if (!target) { target = { x: snap.x, y: snap.y, name: alphabet[elements.points.length % alphabet.length], id: Date.now() }; elements.points.push(target); }
+            if (target !== selectedPoint) {
+                elements.lines.push({ p1id: selectedPoint.id, p2id: target.id, label: '', dashed: false, tick: '' });
+                saveHistory();
             }
-        } else if (isDraggingPoint) {
-            saveHistory();
-        }
-
-        isDrawingLine = false;
-        isDraggingPoint = false;
-        selectedPoint = null;
+        } else if (isDraggingPoint || isDraggingLabel) { saveHistory(); }
+        isDrawingLine = isDraggingPoint = isDraggingLabel = false; selectedPoint = null;
     };
 
-    const handleDblAction = (x, y) => {
-        for (let l of elements.lines) {
-            const p1 = elements.points.find(p => p.id === l.p1id);
-            const p2 = elements.points.find(p => p.id === l.p2id);
-            if (p1 && p2) {
-                const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
-                if (Math.hypot(mx - x, my - y) < 20) return showEditor(l, x, y, 'label');
-            }
-        }
-        const hitP = elements.points.find(p => Math.hypot(p.x - x, p.y - y) < TOUCH_RADIUS);
-        if (hitP) return showEditor(hitP, x, y, 'name');
-        if (elements.points.some(p => Math.hypot(p.x - x, p.y - y) < TOUCH_RADIUS)) return;
+    function handleDblClick(x, y) {
+        const hitP = elements.points.find(p => {
+            const off = p.manualLabel ? p.labelOff : getAutoOffset(p);
+            return Math.hypot(p.x + off.x - x, p.y + off.y - y) < 25;
+        });
+        if (hitP) { selectedLabelObj = hitP; return; }
 
-        const snap = calculateSnap(x, y);
-        elements.points.push({ x: snap.x, y: snap.y, name: alphabet[elements.points.length % alphabet.length], id: Date.now(), blink: 1 });
-        saveHistory();
-    };
-
-    function showEditor(obj, x, y, field) {
-        activeObjRef = obj;
-        activeField = field;
-        overlay.style.display = 'block';
-        overlay.style.left = Math.min(x, canvas.width - 80) + 'px';
-        overlay.style.top = Math.max(y - 30, 10) + 'px';
-        editInput.value = obj[field] || '';
-        editInput.focus();
+        const hitL = elements.lines.find(l => {
+            const mid = l.manualLabelPos || getMid(l);
+            return Math.hypot(mid.x - x, mid.y - y) < 25;
+        });
+        if (hitL) { 
+            selectedLabelObj = hitL; activeMenuLine = hitL;
+            lineMenu.style.display = 'flex';
+            lineMenu.style.left = Math.min(x + 20, 240) + 'px';
+            lineMenu.style.top = Math.min(y - 50, 150) + 'px';
+            lineInput.value = hitL.label || '';
+        } else { selectedLabelObj = null; }
     }
 
-    editInput.onkeydown = (e) => {
-        if(e.key === 'Enter') {
-            activeObjRef[activeField] = editInput.value;
-            overlay.style.display = 'none';
-            saveHistory();
+    function getMid(l) {
+        const p1 = elements.points.find(p => p.id === l.p1id), p2 = elements.points.find(p => p.id === l.p2id);
+        return p1 && p2 ? { x: (p1.x+p2.x)/2, y: (p1.y+p2.y)/2 } : {x:0,y:0};
+    }
+
+    lineInput.oninput = () => { if(activeMenuLine) activeMenuLine.label = lineInput.value; };
+    function closeMenu() { lineMenu.style.display = 'none'; saveHistory(); }
+    function toggleDash() { if(activeMenuLine) activeMenuLine.dashed = !activeMenuLine.dashed; }
+    function setTick(t) { if(activeMenuLine) activeMenuLine.tick = (activeMenuLine.tick === t ? '' : t); }
+    function deleteLine() { elements.lines = elements.lines.filter(l => l !== activeMenuLine); closeMenu(); }
+    function splitLine() {
+        const l = activeMenuLine; const p1 = elements.points.find(p => p.id === l.p1id), p2 = elements.points.find(p => p.id === l.p2id);
+        const np = { x: (p1.x+p2.x)/2, y: (p1.y+p2.y)/2, name: alphabet[elements.points.length % alphabet.length], id: Date.now() };
+        elements.points.push(np);
+        elements.lines = elements.lines.filter(line => line !== l);
+        elements.lines.push({ p1id: p1.id, p2id: np.id, label: '', dashed: false, tick: '' });
+        elements.lines.push({ p1id: np.id, p2id: p2.id, label: '', dashed: false, tick: '' });
+        closeMenu();
+    }
+
+    function drawTicks(ctx, p1, p2, type) {
+        const mx = (p1.x + p2.x)/2, my = (p1.y + p2.y)/2;
+        const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+        const len = 6;
+        
+        // Смещение если в центре точка
+        let ox = mx, oy = my;
+        if (elements.points.some(p => Math.hypot(p.x - mx, p.y - my) < 5)) {
+            ox -= Math.cos(angle) * 15; oy -= Math.sin(angle) * 15;
         }
-    };
 
-    canvas.addEventListener('mousedown', onStart);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onEnd);
-    canvas.addEventListener('dblclick', (e) => { const p = getPos(e); handleDblAction(p.x, p.y); });
+        ctx.beginPath();
+        ctx.strokeStyle = '#2d3436'; ctx.lineWidth = 1.5;
+        const drawLine = (shift) => {
+            const sx = ox + Math.cos(angle) * shift, sy = oy + Math.sin(angle) * shift;
+            ctx.moveTo(sx - Math.sin(angle)*len, sy + Math.cos(angle)*len);
+            ctx.lineTo(sx + Math.sin(angle)*len, sy - Math.cos(angle)*len);
+        };
 
-    canvas.addEventListener('touchstart', (e) => { e.preventDefault(); onStart(e); }, {passive: false});
-    canvas.addEventListener('touchmove', (e) => { e.preventDefault(); onMove(e); }, {passive: false});
-    canvas.addEventListener('touchend', (e) => {
-        onEnd(e);
-        const now = Date.now();
-        if (now - lastTapTime < 300) handleDblAction(lastPos.x, lastPos.y);
-        lastTapTime = now;
-    });
+        if (type === 'I') drawLine(0);
+        if (type === 'II') { drawLine(-3); drawLine(3); }
+        if (type === 'III') { drawLine(-5); drawLine(0); drawLine(5); }
+        if (type === 'IV') { drawLine(-6); drawLine(-2); drawLine(2); drawLine(6); }
+        if (type === '~') {
+            ctx.moveTo(ox - 8, oy); ctx.bezierCurveTo(ox - 4, oy - 8, ox + 4, oy + 8, ox + 8, oy);
+        }
+        ctx.stroke();
+    }
+
+    canvas.addEventListener('mousedown', onStart); window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onEnd);
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); onStart(e); }, {passive: false});
+    canvas.addEventListener('touchmove', e => { e.preventDefault(); onMove(e); }, {passive: false});
+    canvas.addEventListener('touchend', onEnd);
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.strokeStyle = '#f5f5f5'; ctx.lineWidth = 1;
-        for (let i = 0; i <= canvas.width; i += GRID) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke(); }
-        for (let i = 0; i <= canvas.height; i += GRID) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke(); }
+        ctx.strokeStyle = '#f0f0f0'; ctx.lineWidth = 1;
+        for(let i=0; i<=canvas.width; i+=GRID) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke(); }
+        for(let i=0; i<=canvas.height; i+=GRID) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); ctx.stroke(); }
 
         elements.lines.forEach(l => {
-            const p1 = elements.points.find(p => p.id === l.p1id);
-            const p2 = elements.points.find(p => p.id === l.p2id);
-            if (p1 && p2) {
-                ctx.strokeStyle = '#2d3436'; ctx.lineWidth = 2;
-                ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
-                const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
-                ctx.fillStyle = 'rgba(9, 132, 227, 0.1)';
-                ctx.beginPath(); ctx.arc(mx, my, 12, 0, 7); ctx.fill();
-                if(l.label) {
-                    ctx.fillStyle = '#0984e3'; ctx.font = 'bold 11px Arial'; ctx.textAlign = 'center';
-                    ctx.fillText(l.label, mx, my - 15);
-                }
-            }
+            const p1 = elements.points.find(p => p.id === l.p1id), p2 = elements.points.find(p => p.id === l.p2id);
+            if (!p1 || !p2) return;
+            ctx.setLineDash(l.dashed ? [6, 4] : []); ctx.strokeStyle = '#2d3436'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke(); ctx.setLineDash([]);
+            if (l.tick) drawTicks(ctx, p1, p2, l.tick);
+            const mid = l.manualLabelPos || getMid(l);
+            if (selectedLabelObj === l) { ctx.fillStyle = 'rgba(9, 132, 227, 0.15)'; ctx.beginPath(); ctx.arc(mid.x, mid.y, 15, 0, 7); ctx.fill(); }
+            if(l.label) { ctx.font = 'bold 14px Arial'; ctx.fillStyle = '#0984e3'; ctx.textAlign = 'center'; ctx.fillText(l.label, mid.x, mid.y - 12); }
         });
-
-        if (isDrawingLine && selectedPoint) {
-            ctx.strokeStyle = '#0984e3'; ctx.setLineDash([5, 5]);
-            ctx.beginPath(); ctx.moveTo(selectedPoint.x, selectedPoint.y); ctx.lineTo(lastPos.x, lastPos.y); ctx.stroke();
-            ctx.setLineDash([]);
-        }
 
         elements.points.forEach(p => {
             ctx.fillStyle = (selectedPoint === p && isDraggingPoint) ? '#d63031' : '#2d3436';
             ctx.beginPath(); ctx.arc(p.x, p.y, POINT_RADIUS, 0, 7); ctx.fill();
-            ctx.font = 'italic 13px serif'; ctx.textAlign = 'left';
-            ctx.fillText(p.name, p.x + 7, p.y - 7);
-            if(p.blink > 0) {
-                ctx.fillStyle = `rgba(9, 132, 227, ${p.blink*0.2})`;
-                ctx.beginPath(); ctx.arc(p.x, p.y, 10, 0, 7); ctx.fill(); p.blink -= 0.03;
-            }
+            const off = p.manualLabel ? p.labelOff : getAutoOffset(p);
+            if (selectedLabelObj === p) { ctx.fillStyle = 'rgba(9, 132, 227, 0.15)'; ctx.beginPath(); ctx.arc(p.x+off.x+5, p.y+off.y-5, 15, 0, 7); ctx.fill(); }
+            ctx.font = 'italic 17px serif'; ctx.fillStyle = '#2d3436'; ctx.fillText(p.name, p.x + off.x, p.y + off.y);
         });
+
+        if (isDrawingLine && selectedPoint) {
+            const snap = calculateSnap(lastPos.x, lastPos.y);
+            ctx.strokeStyle = '#0984e3'; ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.moveTo(selectedPoint.x, selectedPoint.y); ctx.lineTo(snap.x, snap.y); ctx.stroke(); ctx.setLineDash([]);
+        }
         requestAnimationFrame(draw);
     }
     draw();
-
-    function generateCode() { alert("Данные экспортированы в консоль (F12)"); console.log(elements); }
 </script>
 </body>
 </html>
