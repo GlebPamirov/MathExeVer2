@@ -3,28 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GeoEditor v4.8 — Smart Logic</title>
+    <title>GeoEditor v5.1 — Dynamic Links</title>
     <style>
-        :root { --accent: #0984e3; --panel: #f1f2f6; --text: #2d3436; }
+        :root { --accent: #0984e3; --panel: #f1f2f6; --text: #2d3436; --shadow: rgba(0,0,0,0.1); }
         body { font-family: system-ui; display: flex; flex-direction: column; align-items: center; background: #dfe6e9; margin: 0; padding: 10px; overflow: hidden; touch-action: none; }
-        .toolbar { background: var(--panel); padding: 10px; border-radius: 10px; display: flex; gap: 8px; margin-bottom: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .btn { padding: 8px 12px; border: 1px solid #ccc; background: white; cursor: pointer; border-radius: 5px; font-size: 14px; }
-        #canvas-container { position: relative; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border-radius: 8px; }
+        .toolbar { background: var(--panel); padding: 10px; border-radius: 10px; display: flex; gap: 8px; margin-bottom: 10px; box-shadow: 0 4px 6px var(--shadow); }
+        .btn { padding: 8px 14px; border: 1px solid #ccc; background: white; cursor: pointer; border-radius: 6px; font-size: 13px; font-weight: 500; transition: 0.2s; }
+        .btn:active { transform: scale(0.95); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #canvas-container { position: relative; background: white; box-shadow: 0 10px 30px var(--shadow); border-radius: 8px; }
         canvas { display: block; cursor: crosshair; touch-action: none; }
         #edit-overlay { 
             display: none; position: absolute; background: white; 
-            padding: 2px; border: 1px solid #ccc; border-radius: 3px; z-index: 100;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 2px; border: 1px solid #ccc; border-radius: 4px; z-index: 100;
+            box-shadow: 0 4px 10px var(--shadow);
         }
-        #edit-input { width: 60px; border: none; outline: none; text-align: center; font-size: 12px; padding: 2px; }
-        .hint { margin-top: 10px; font-size: 0.75rem; color: #636e72; text-align: center; line-height: 1.4; }
+        #edit-input { width: 70px; border: none; outline: none; text-align: center; font-size: 13px; padding: 4px; color: var(--accent); font-weight: bold; }
+        .history-panel { margin-top: 15px; display: flex; gap: 10px; }
+        .hint { margin-top: 10px; font-size: 0.7rem; color: #636e72; text-align: center; opacity: 0.8; }
     </style>
 </head>
 <body>
 
 <div class="toolbar">
-    <div style="font-weight: bold; padding: 8px; color: var(--accent);">GeoEditor v4.8</div>
-    <button class="btn" style="background: #00b894; color: white; border: none;" onclick="generateCode()">Экспорт</button>
+    <div style="font-weight: bold; padding: 8px; color: var(--accent);">GeoEditor v5.1</div>
+    <button class="btn" onclick="generateCode()">Экспорт</button>
 </div>
 
 <div id="canvas-container">
@@ -34,9 +37,13 @@
     </div>
 </div>
 
+<div class="history-panel">
+    <button class="btn" id="undoBtn" onclick="undo()">⬅ Отмена</button>
+    <button class="btn" id="redoBtn" onclick="redo()">Возврат ➡</button>
+</div>
+
 <div class="hint">
-    Двойной клик/тап: точка | Зажать и сразу тянуть: линия<br>
-    Удержать 1 сек: перенос | Клик мимо окна ввода: закрыть без сохранения
+    Двойной тап: точка | Тянуть сразу: линия | Удержать 1 сек: перенос точки и линий
 </div>
 
 <script>
@@ -49,23 +56,59 @@
     const SNAP_DIST = 15;
     const POINT_RADIUS = 3;
     const TOUCH_RADIUS = 28;
+    const MIN_LINE_LEN = 25; 
 
-    let elements = { points: [], lines: [], segments: [] };
+    let elements = { points: [], lines: [] };
+    let history = [];
+    let historyStep = -1;
+
     let isDrawingLine = false;
     let isDraggingPoint = false;
     let selectedPoint = null;
     let lastPos = { x: 0, y: 0 };
     let lastTapTime = 0;
+    let actionStartTime = 0;
     let longPressTimer = null;
-    let activeObject = null; // Для редактирования
+    let activeObjRef = null;
+    let activeField = '';
+
     const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
     function resize() {
         canvas.width = Math.min(window.innerWidth - 30, 800);
         canvas.height = canvas.width * 0.6;
+        if(history.length === 0) saveHistory(); 
     }
     window.addEventListener('resize', resize);
     resize();
+
+    function saveHistory() {
+        if (historyStep < history.length - 1) history = history.slice(0, historyStep + 1);
+        history.push(JSON.stringify(elements));
+        historyStep++;
+        updateHistoryButtons();
+    }
+
+    function undo() {
+        if (historyStep > 0) {
+            historyStep--;
+            elements = JSON.parse(history[historyStep]);
+            updateHistoryButtons();
+        }
+    }
+
+    function redo() {
+        if (historyStep < history.length - 1) {
+            historyStep++;
+            elements = JSON.parse(history[historyStep]);
+            updateHistoryButtons();
+        }
+    }
+
+    function updateHistoryButtons() {
+        document.getElementById('undoBtn').disabled = historyStep <= 0;
+        document.getElementById('redoBtn').disabled = historyStep >= history.length - 1;
+    }
 
     function getPos(e) {
         const rect = canvas.getBoundingClientRect();
@@ -78,71 +121,67 @@
         const gx = Math.round(x / GRID) * GRID;
         const gy = Math.round(y / GRID) * GRID;
         if (Math.hypot(x - gx, y - gy) < SNAP_DIST) return { x: gx, y: gy };
-        
-        // Прилипание к существующим линиям
-        for (let l of elements.lines) {
-            const dx = l.p2.x - l.p1.x, dy = l.p2.y - l.p1.y;
-            const t = Math.max(0, Math.min(1, ((x - l.p1.x) * dx + (y - l.p1.y) * dy) / (dx * dx + dy * dy)));
-            const px = l.p1.x + t * dx, py = l.p1.y + t * dy;
-            if (Math.hypot(x - px, y - py) < 10) return { x: px, y: py };
-        }
         return { x, y };
     }
 
     const onStart = (e) => {
-        // Если окно ввода открыто - закрываем его при любом клике по холсту
-        if (overlay.style.display === 'block') {
-            overlay.style.display = 'none';
-        }
-
+        if (overlay.style.display === 'block') overlay.style.display = 'none';
         const pos = getPos(e);
         lastPos = pos;
-        const hit = elements.points.find(p => Math.hypot(p.x - pos.x, p.y - pos.y) < TOUCH_RADIUS);
+        actionStartTime = Date.now();
         
+        const hit = elements.points.find(p => Math.hypot(p.x - pos.x, p.y - pos.y) < TOUCH_RADIUS);
         if (hit) {
             selectedPoint = hit;
-            // Таймер долгого нажатия (1 сек)
             longPressTimer = setTimeout(() => {
                 isDraggingPoint = true;
                 isDrawingLine = false;
             }, 1000);
-            
-            // Если начали движение до истечения 1 сек - это будет линия
             isDrawingLine = true;
         }
     };
 
     const onMove = (e) => {
         const pos = getPos(e);
-        // Если начали движение — отменяем "чистое" долгое нажатие без движения, 
-        // но если уже наступил режим Dragging, продолжаем его.
         if (Math.hypot(pos.x - lastPos.x, pos.y - lastPos.y) > 5) {
             if (!isDraggingPoint) clearTimeout(longPressTimer);
         }
-        
-        lastPos = pos;
         if (isDraggingPoint && selectedPoint) {
             const snap = calculateSnap(pos.x, pos.y);
             selectedPoint.x = snap.x;
             selectedPoint.y = snap.y;
         }
+        lastPos = pos;
     };
 
     const onEnd = (e) => {
         clearTimeout(longPressTimer);
-        
+        const duration = Date.now() - actionStartTime;
+
         if (isDrawingLine && selectedPoint && !isDraggingPoint) {
-            const snap = calculateSnap(lastPos.x, lastPos.y);
-            let target = elements.points.find(p => Math.hypot(p.x - snap.x, p.y - snap.y) < TOUCH_RADIUS && p !== selectedPoint);
-            
-            // Если в месте отрыва нет точки - создаем её
-            if (!target) {
-                target = { x: snap.x, y: snap.y, name: alphabet[elements.points.length % alphabet.length], blink: 1 };
-                elements.points.push(target);
+            const dist = Math.hypot(lastPos.x - selectedPoint.x, lastPos.y - selectedPoint.y);
+            if (dist > MIN_LINE_LEN && duration > 200) {
+                const snap = calculateSnap(lastPos.x, lastPos.y);
+                let target = elements.points.find(p => Math.hypot(p.x - snap.x, p.y - snap.y) < TOUCH_RADIUS);
+                
+                if (!target) {
+                    target = { x: snap.x, y: snap.y, name: alphabet[elements.points.length % alphabet.length], id: Date.now(), blink: 1 };
+                    elements.points.push(target);
+                }
+                
+                if (target !== selectedPoint) {
+                    const exists = elements.lines.some(l => 
+                        (l.p1id === selectedPoint.id && l.p2id === target.id) || 
+                        (l.p1id === target.id && l.p2id === selectedPoint.id)
+                    );
+                    if (!exists) {
+                        elements.lines.push({ p1id: selectedPoint.id, p2id: target.id, label: '' });
+                        saveHistory();
+                    }
+                }
             }
-            
-            const exists = elements.lines.some(l => (l.p1 === selectedPoint && l.p2 === target) || (l.p2 === selectedPoint && l.p1 === target));
-            if (!exists) elements.lines.push({ p1: selectedPoint, p2: target });
+        } else if (isDraggingPoint) {
+            saveHistory();
         }
 
         isDrawingLine = false;
@@ -151,20 +190,45 @@
     };
 
     const handleDblAction = (x, y) => {
-        // Проверка клика по сегменту (линии)
-        const hitSeg = elements.segments.find(s => Math.hypot(s.midX - x, s.midY - y) < 25);
-        if (hitSeg) return showEditor(hitSeg, x, y, 'label');
+        // Проверка клика по подписи линии
+        for (let l of elements.lines) {
+            const p1 = elements.points.find(p => p.id === l.p1id);
+            const p2 = elements.points.find(p => p.id === l.p2id);
+            if (p1 && p2) {
+                const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+                if (Math.hypot(mx - x, my - y) < 20) return showEditor(l, x, y, 'label');
+            }
+        }
 
         // Проверка клика по точке
         const hitP = elements.points.find(p => Math.hypot(p.x - x, p.y - y) < TOUCH_RADIUS);
         if (hitP) return showEditor(hitP, x, y, 'name');
 
-        // Иначе - новая точка
+        if (elements.points.some(p => Math.hypot(p.x - x, p.y - y) < TOUCH_RADIUS)) return;
+
         const snap = calculateSnap(x, y);
-        elements.points.push({ x: snap.x, y: snap.y, name: alphabet[elements.points.length % alphabet.length], blink: 1.0 });
+        elements.points.push({ x: snap.x, y: snap.y, name: alphabet[elements.points.length % alphabet.length], id: Date.now(), blink: 1 });
+        saveHistory();
     };
 
-    // События
+    function showEditor(obj, x, y, field) {
+        activeObjRef = obj;
+        activeField = field;
+        overlay.style.display = 'block';
+        overlay.style.left = Math.min(x, canvas.width - 80) + 'px';
+        overlay.style.top = Math.max(y - 30, 10) + 'px';
+        editInput.value = obj[field] || '';
+        editInput.focus();
+    }
+
+    editInput.onkeydown = (e) => {
+        if(e.key === 'Enter') {
+            activeObjRef[activeField] = editInput.value;
+            overlay.style.display = 'none';
+            saveHistory();
+        }
+    };
+
     canvas.addEventListener('mousedown', onStart);
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onEnd);
@@ -179,47 +243,33 @@
         lastTapTime = now;
     });
 
-    function showEditor(obj, x, y, field) {
-        activeObject = obj;
-        overlay.style.display = 'block';
-        overlay.style.left = Math.min(x, canvas.width - 70) + 'px';
-        overlay.style.top = Math.max(y - 30, 10) + 'px';
-        editInput.value = obj[field] || '';
-        editInput.focus();
-        editInput.onkeydown = (e) => {
-            if(e.key === 'Enter') {
-                obj[field] = editInput.value;
-                overlay.style.display = 'none';
-            }
-        };
-    }
-
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        // Сетка
         ctx.strokeStyle = '#f5f5f5'; ctx.lineWidth = 1;
         for (let i = 0; i <= canvas.width; i += GRID) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke(); }
         for (let i = 0; i <= canvas.height; i += GRID) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke(); }
 
-        elements.segments = [];
         elements.lines.forEach(l => {
-            ctx.strokeStyle = '#2d3436'; ctx.lineWidth = 1.5; ctx.setLineDash([]);
-            ctx.beginPath(); ctx.moveTo(l.p1.x, l.p1.y); ctx.lineTo(l.p2.x, l.p2.y); ctx.stroke();
-            const mx = (l.p1.x + l.p2.x) / 2, my = (l.p1.y + l.p2.y) / 2;
-            ctx.fillStyle = 'rgba(9, 132, 227, 0.08)';
-            ctx.beginPath(); ctx.arc(mx, my, 12, 0, 7); ctx.fill();
-            
-            let sData = elements.segments.find(s => s.id === `s_${l.p1.x}${l.p1.y}${l.p2.x}${l.p2.y}`);
-            if(!sData) { sData = { id: `s_${l.p1.x}${l.p1.y}${l.p2.x}${l.p2.y}`, label: '', midX: mx, midY: my }; elements.segments.push(sData); }
-            if(sData.label) {
-                ctx.fillStyle = '#0984e3'; ctx.font = 'bold 11px Arial'; ctx.textAlign = 'center';
-                ctx.fillText(sData.label, mx, my - 15);
+            const p1 = elements.points.find(p => p.id === l.p1id);
+            const p2 = elements.points.find(p => p.id === l.p2id);
+            if (p1 && p2) {
+                ctx.strokeStyle = '#2d3436'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+                
+                const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+                ctx.fillStyle = 'rgba(9, 132, 227, 0.1)';
+                ctx.beginPath(); ctx.arc(mx, my, 12, 0, 7); ctx.fill();
+                if(l.label) {
+                    ctx.fillStyle = '#0984e3'; ctx.font = 'bold 11px Arial'; ctx.textAlign = 'center';
+                    ctx.fillText(l.label, mx, my - 15);
+                }
             }
         });
 
         if (isDrawingLine && selectedPoint) {
             ctx.strokeStyle = '#0984e3'; ctx.setLineDash([5, 5]);
             ctx.beginPath(); ctx.moveTo(selectedPoint.x, selectedPoint.y); ctx.lineTo(lastPos.x, lastPos.y); ctx.stroke();
+            ctx.setLineDash([]);
         }
 
         elements.points.forEach(p => {
@@ -236,7 +286,7 @@
     }
     draw();
 
-    function generateCode() { alert("Код в консоли (F12). Реализуйте экспорт под ваш формат."); console.log(elements); }
+    function generateCode() { alert("Данные экспортированы в консоль (F12)"); console.log(elements); }
 </script>
 </body>
 </html>
